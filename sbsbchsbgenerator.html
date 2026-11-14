@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BSB va CHSB Natijalar Tahlili Generator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- ExcelJS (Haqiqiy .xlsx formatlash, ramkalar, formulalar va 2.8 raqam himoyasi uchun) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <!-- FileSaver.js (Faylni yuklab olish uchun) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- Font Awesome ikonkalari -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+        /* Jadval inputlari uchun chiroyli stil */
+        .cell-input {
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            padding: 4px 2px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.15s ease;
+        }
+        .cell-input:focus {
+            outline: none;
+            background-color: #eff6ff;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        .name-input {
+            text-align: left;
+            padding-left: 8px;
+        }
+        /* Number input o'qlarini yashirish */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* Chop etish (Print / PDF) uchun maxsus CSS */
+        @media print {
+            body {
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            .print-container {
+                box-shadow: none !important;
+                border: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            table {
+                border-collapse: collapse !important;
+                width: 100% !important;
+                font-size: 10px !important;
+            }
+            th, td {
+                border: 1px solid #000 !important;
+                padding: 2px 3px !important;
+                color: #000 !important;
+            }
+            .cell-input {
+                font-size: 10px !important;
+                padding: 0 !important;
+            }
+            @page {
+                size: landscape;
+                margin: 10mm;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Yuqori Navigatsiya Paneli -->
+    <header class="bg-slate-900 text-white shadow-md no-print sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 p-2 rounded-lg">
+                    <i class="fa-solid fa-table-list text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base sm:text-lg leading-tight">BSB va CHSB Tahlil Tizimi</h1>
+                    <p class="text-xs text-slate-400">O'zbekiston maktablari uchun avtomatik Excel generator</p>
+                </div>
+            </div>
+
+            <!-- Eksport va Chop etish tugmalari -->
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="exportCurrentExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-medium px-3.5 py-2 rounded-lg shadow flex items-center gap-2 transition">
+                    <i class="fa-solid fa-file-excel"></i>
+                    <span>Joriy jadvalni Excel (.xlsx)</span>
+                </button>
+                <button onclick="exportBothExcel()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium px-3.5 py-2 rounded-lg shadow flex items-center gap-2 transition" title="Bitta Excel faylda 2 ta varaq: BSB va CHSB">
+                    <i class="fa-solid fa-layer-group"></i>
+                    <span>BSB + CHSB (2 varaq)</span>
+                </button>
+                <button onclick="window.print()" class="bg-slate-700 hover:bg-slate-600 text-white text-xs sm:text-sm font-medium px-3 py-2 rounded-lg shadow flex items-center gap-2 transition">
+                    <i class="fa-solid fa-print"></i>
+                    <span class="hidden sm:inline">Chop etish / PDF</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Xabar chiqarish (Toast Notification) -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 no-print">
+        <div class="bg-slate-800 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 border border-slate-700">
+            <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400"></i>
+            <span id="toast-msg" class="text-sm font-medium">Xabar</span>
+        </div>
+    </div>
+
+    <!-- Asosiy Kontent -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-3 sm:px-4 py-5 space-y-5">
+
+        <!-- 1. Hujjat Sarlavhasi Sozlamalari -->
+        <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-5 no-print">
+            <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+                <h2 class="font-semibold text-slate-800 flex items-center gap-2 text-sm sm:text-base">
+                    <i class="fa-solid fa-sliders text-blue-600"></i>
+                    Hujjat ma'lumotlari (Sarlavha va imzolar)
+                </h2>
+                <button onclick="clearMetadata()" class="text-xs text-slate-500 hover:text-rose-600 underline">
+                    Bo'sh skelet qilish (tozalash)
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Maktab / Hudud nomi</label>
+                    <input type="text" id="meta-school" oninput="updatePrintHeader()" placeholder="Masalan: Muzrabot tumani 7-maktab" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Fan nomi</label>
+                    <input type="text" id="meta-subject" oninput="updatePrintHeader()" placeholder="Masalan: Ingliz tili / Fizika" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Sinf va Guruh</label>
+                    <input type="text" id="meta-class" oninput="updatePrintHeader()" placeholder='Masalan: 6-"V" sinf 1-guruh' class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">O'quv yili va Chorak</label>
+                    <input type="text" id="meta-quarter" oninput="updatePrintHeader()" value="2025/2026 o'quv yili, IV-chorak" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Sana</label>
+                    <input type="text" id="meta-date" oninput="updatePrintHeader()" placeholder="Masalan: 23.05.2026" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Fan o'qituvchisi (F.I.Sh.)</label>
+                    <input type="text" id="meta-teacher" oninput="updatePrintHeader()" placeholder="Masalan: Bozorova R.A." class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Metodbirlashma rahbari (F.I.Sh.)</label>
+                    <input type="text" id="meta-head" oninput="updatePrintHeader()" placeholder="Bo'sh qoldirilsa imzo chizig'i chiqadi" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. Boshqaruv Paneli (Rejim tanlash va Tezkor amallar) -->
+        <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3 no-print">
+            <!-- BSB / CHSB Tablari -->
+            <div class="flex bg-slate-100 p-1 rounded-xl">
+                <button id="tab-bsb" onclick="switchMode('BSB')" class="px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center gap-2 bg-white text-blue-600 shadow-sm">
+                    <i class="fa-solid fa-star-half-stroke"></i>
+                    <span>BSB (25 ball, 5 ta topshiriq)</span>
+                </button>
+                <button id="tab-chsb" onclick="switchMode('CHSB')" class="px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center gap-2 text-slate-600 hover:text-slate-900">
+                    <i class="fa-solid fa-award"></i>
+                    <span>CHSB (40 ball, 15 ta topshiriq)</span>
+                </button>
+            </div>
+
+            <!-- Yordamchi tugmalar -->
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="openPasteModal()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-paste"></i>
+                    <span>Ro'yxatni nusxalab joylash</span>
+                </button>
+                <button onclick="openAutoFillModal()" class="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition" title="Jami ballarni kiritsangiz, topshiriqlarga mantiqiy taqsimlab beradi">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>Avto-taqsimot (Ball bo'yicha)</span>
+                </button>
+                <button onclick="clearScores()" class="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-eraser"></i>
+                    <span>Ballarni tozalash</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- 3. Asosiy Tahlil Jadvali -->
+        <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-3 sm:p-5 print-container">
+            
+            <!-- Chop etishda va tepada ko'rinadigan rasmiy sarlavha -->
+            <div id="print-header" class="text-center mb-4">
+                <h2 id="hdr-line1" class="font-bold text-sm sm:text-base text-slate-900 uppercase">
+                    ________________________________________ maktabning ________________ fanidan
+                </h2>
+                <p id="hdr-line2" class="font-semibold text-xs sm:text-sm text-slate-700 mt-1">
+                    ______ sinf, 2025/2026 o'quv yili, IV-chorak BSB (25-ball) natijalari tahlili. &nbsp;&nbsp;&nbsp; Sana: ____________
+                </p>
+            </div>
+
+            <!-- Jadval konteyneri -->
+            <div class="overflow-x-auto rounded-lg border border-slate-300">
+                <table class="w-full border-collapse text-xs sm:text-sm" id="assessment-table">
+                    <thead id="table-head" class="bg-slate-100 text-slate-800 font-semibold">
+                        <!-- JS orqali dinamik yaratiladi -->
+                    </thead>
+                    <tbody id="table-body" class="divide-y divide-slate-200">
+                        <!-- JS orqali dinamik yaratiladi -->
+                    </tbody>
+                    <tfoot id="table-foot" class="bg-slate-50 font-semibold text-slate-800 border-t-2 border-slate-300">
+                        <!-- O'rtacha ko'rsatkichlar JS orqali yaratiladi -->
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- Qator qo'shish tugmasi -->
+            <div class="mt-3 flex items-center justify-between no-print">
+                <button onclick="addStudentRow()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-2 transition">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Yangi o'quvchi qatori qo'shish</span>
+                </button>
+                <span class="text-xs text-slate-400">
+                    <i class="fa-solid fa-circle-info mr-1"></i>
+                    Excelga yuklanganda <strong>2.8</strong> ballar sanaga aylanib ketmaydi (maxsus raqam formati himoyalangan).
+                </span>
+            </div>
+
+            <!-- Imzolar qismi (Chop etishda ham ko'rinadi) -->
+            <div class="mt-6 pt-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs sm:text-sm font-medium text-slate-800 px-2">
+                <div>
+                    Fan o'qituvchisi: <span id="ftr-teacher" class="underline font-semibold">_______________________</span>
+                </div>
+                <div>
+                    Fan metodbirlashma rahbari: <span id="ftr-head" class="underline font-semibold">_______________________</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. Real-vaqt Statistikasi Kartochkalari -->
+        <section class="grid grid-cols-2 sm:grid-cols-5 gap-3 no-print">
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+                <div class="text-xs text-slate-500">O'quvchilar soni</div>
+                <div id="stat-count" class="text-xl font-bold text-slate-800 mt-1">0</div>
+            </div>
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+                <div class="text-xs text-slate-500">O'rtacha ball / Foiz</div>
+                <div id="stat-avg" class="text-xl font-bold text-blue-600 mt-1">0 (0%)</div>
+            </div>
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+                <div class="text-xs text-slate-500">Sifat ko'rsatkichi (4 va 5)</div>
+                <div id="stat-quality" class="text-xl font-bold text-emerald-600 mt-1">0%</div>
+            </div>
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+                <div class="text-xs text-slate-500">O'zlashtirish (3, 4, 5)</div>
+                <div id="stat-pass" class="text-xl font-bold text-indigo-600 mt-1">0%</div>
+            </div>
+            <div class="col-span-2 sm:col-span-1 bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+                <div class="text-xs text-slate-500">Baholar taqsimoti</div>
+                <div id="stat-grades" class="text-xs font-semibold text-slate-700 mt-2 flex gap-2">
+                    <span class="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">5: 0</span>
+                    <span class="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">4: 0</span>
+                    <span class="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">3: 0</span>
+                    <span class="bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded">2: 0</span>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal 1: Ro'yxatni nusxalab joylash (Paste Modal) -->
+    <div id="paste-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-5 shadow-xl border border-slate-200">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h3 class="font-bold text-slate-800">O'quvchilar ro'yxatini birdaniga kiritish</h3>
+                <button onclick="closeModal('paste-modal')" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500 mt-2 mb-3">
+                eMaktab yoki Word/Excel dan o'quvchilarning ism-familiyalarini nusxalab (Ctrl+C), quyidagi maydonga tashlang (Ctrl+V). Har bir yangi qator alohida o'quvchi bo'lib qo'shiladi:
+            </p>
+            <textarea id="paste-textarea" rows="8" placeholder="Abdig'aniyeva Durdona&#10;Abdirashidova Sevinch&#10;Abdirashidova Shirin..." class="w-full p-3 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-blue-500"></textarea>
+            <div class="mt-4 flex justify-end gap-2">
+                <button onclick="closeModal('paste-modal')" class="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg">Bekor qilish</button>
+                <button onclick="processPastedNames()" class="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg">Jadvalga joylash</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Avto-taqsimot (Jami ballar bo'yicha topshiriqlarni to'ldirish) -->
+    <div id="autofill-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-2xl max-w-xl w-full p-5 shadow-xl border border-slate-200 max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i>
+                    <span>Jami ballar bo'yicha topshiriqlarni avtomatik taqsimlash</span>
+                </h3>
+                <button onclick="closeModal('autofill-modal')" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-600 mt-2 mb-3">
+                Har bir o'quvchining eMaktabdagi <strong>umumiy BSB (maks 25)</strong> yoki <strong>CHSB (maks 40)</strong> ballini kiriting — tizim topshiriqlar bo'yicha mantiqiy taqsimlab beradi:
+            </p>
+            <div id="autofill-list" class="overflow-y-auto space-y-2 pr-1 flex-grow border-y border-slate-100 py-2">
+                <!-- JS orqali o'quvchilar ro'yxati chiqadi -->
+            </div>
+            <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+                <button onclick="fillRandomTotals()" class="px-3 py-2 text-xs font-semibold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-lg">
+                    Namuna ballar qo'yish
+                </button>
+                <div class="flex gap-2">
+                    <button onclick="closeModal('autofill-modal')" class="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg">Yopish</button>
+                    <button onclick="applyAutoDistribution()" class="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg">Topshiriqlarga taqsimlash</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. KONFIGURATSIYA VA HOLAT (STATE)
+        // ==========================================
+        const CONFIG = {
+            BSB: {
+                title: 'BSB (25-ball)',
+                maxTotal: 25,
+                tasks: [
+                    { label: '1', max: 5, isDecimal: false },
+                    { label: '2', max: 5, isDecimal: false },
+                    { label: '3', max: 5, isDecimal: false },
+                    { label: '4', max: 5, isDecimal: false },
+                    { label: '5', max: 5, isDecimal: false }
+                ]
+            },
+            CHSB: {
+                title: 'CHSB (40-ball)',
+                maxTotal: 40,
+                tasks: [
+                    { label: '1', max: 2, isDecimal: false },
+                    { label: '2', max: 2, isDecimal: false },
+                    { label: '3', max: 2, isDecimal: false },
+                    { label: '4', max: 2, isDecimal: false },
+                    { label: '5', max: 2.8, isDecimal: true },
+                    { label: '6', max: 2.8, isDecimal: true },
+                    { label: '7', max: 2.8, isDecimal: true },
+                    { label: '8', max: 2.8, isDecimal: true },
+                    { label: '9', max: 2.8, isDecimal: true },
+                    { label: '10', max: 2.8, isDecimal: true },
+                    { label: '11', max: 2.8, isDecimal: true },
+                    { label: '12', max: 2.8, isDecimal: true },
+                    { label: '13', max: 2.8, isDecimal: true },
+                    { label: '14', max: 2.8, isDecimal: true },
+                    { label: '15', max: 4, isDecimal: false }
+                ]
+            }
+        };
+
+        let currentMode = 'BSB'; // 'BSB' yoki 'CHSB'
+        let students = []; // { id, name, bsb: [], chsb: [] }
+
+        // Dastlabki 15 ta bo'sh o'quvchi qatorini yaratish
+        function initStudents(count = 15) {
+            students = [];
+            for (let i = 0; i < count; i++) {
+                students.push({
+                    id: Date.now() + i,
+                    name: '',
+                    bsb: Array(5).fill(''),
+                    chsb: Array(15).fill('')
+                });
+            }
+        }
+
+        // ==========================================
+        // 2. INTERFEYS VA JADVALNI CHIZISH (RENDER)
+        // ==========================================
+        function switchMode(mode) {
+            currentMode = mode;
+            const tabBsb = document.getElementById('tab-bsb');
+            const tabChsb = document.getElementById('tab-chsb');
+
+            if (mode === 'BSB') {
+                tabBsb.className = 'px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center gap-2 bg-white text-blue-600 shadow-sm';
+                tabChsb.className = 'px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center gap-2 text-slate-600 hover:text-slate-900';
+            } else {
+                tabChsb.className = 'px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center gap-2 bg-white text-blue-600 shadow-sm';
+                tabBsb.className = 'px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center gap-2 text-slate-600 hover:text-slate-900';
+            }
+
+            updatePrintHeader();
+            renderTable();
+        }
+
+        function updatePrintHeader() {
+            const school = document.getElementById('meta-school').value.trim() || '________________________________________';
+            const subject = document.getElementById('meta-subject').value.trim() || '________________';
+            const cls = document.getElementById('meta-class').value.trim() || '______';
+            const quarter = document.getElementById('meta-quarter').value.trim() || "2025/2026 o'quv yili, IV-chorak";
+            const date = document.getElementById('meta-date').value.trim() || '____________';
+            const teacher = document.getElementById('meta-teacher').value.trim() || '_______________________';
+            const head = document.getElementById('meta-head').value.trim() || '_______________________';
+
+            document.getElementById('hdr-line1').textContent = `${school}ning ${subject} fanidan`;
+            document.getElementById('hdr-line2').innerHTML = `${cls}, ${quarter} ${CONFIG[currentMode].title} natijalari tahlili. &nbsp;&nbsp;&nbsp;&nbsp; Sana: ${date}`;
+            document.getElementById('ftr-teacher').textContent = teacher;
+            document.getElementById('ftr-head').textContent = head;
+        }
+
+        function renderTable() {
+            const cfg = CONFIG[currentMode];
+            const thead = document.getElementById('table-head');
+            const tbody = document.getElementById('table-body');
+            const tfoot = document.getElementById('table-foot');
+
+            // 1. Jadval sarlavhasi (2 qatorli: Topshiriq raqami va Maksimal ball)
+            let headRow1 = `
+                <tr>
+                    <th rowspan="2" class="border border-slate-300 px-2 py-2 w-10 text-center bg-slate-100">№</th>
+                    <th rowspan="2" class="border border-slate-300 px-3 py-2 min-w-[200px] text-left bg-slate-100">O'quvchining ismi va familiyasi</th>
+            `;
+            cfg.tasks.forEach(t => {
+                headRow1 += `<th class="border border-slate-300 px-1 py-1.5 text-center min-w-[42px] bg-slate-100">${t.label}</th>`;
+            });
+            headRow1 += `
+                    <th rowspan="2" class="border border-slate-300 px-2 py-2 w-16 text-center bg-blue-50 text-blue-900">Jami<br>(${cfg.maxTotal})</th>
+                    <th rowspan="2" class="border border-slate-300 px-2 py-2 w-16 text-center bg-slate-100">Foizi<br>(%)</th>
+                    <th rowspan="2" class="border border-slate-300 px-2 py-2 w-14 text-center bg-slate-100">Baho</th>
+                    <th rowspan="2" class="border border-slate-300 px-1 py-2 w-9 text-center bg-slate-100 no-print"></th>
+                </tr>
+            `;
+
+            let headRow2 = `<tr class="bg-slate-50 text-xs text-slate-600">`;
+            cfg.tasks.forEach(t => {
+                headRow2 += `<th class="border border-slate-300 px-1 py-1 text-center font-medium">${t.max}</th>`;
+            });
+            headRow2 += `</tr>`;
+
+            thead.innerHTML = headRow1 + headRow2;
+
+            // 2. O'quvchilar qatorlari
+            let bodyHtml = '';
+            students.forEach((st, idx) => {
+                const scores = currentMode === 'BSB' ? st.bsb : st.chsb;
+                const stats = calculateRowStats(scores, cfg.maxTotal);
+
+                bodyHtml += `<tr class="hover:bg-slate-50/80 transition" id="row-${idx}">`;
+                bodyHtml += `<td class="border border-slate-300 px-2 py-1 text-center text-slate-500 font-medium">${idx + 1}</td>`;
+                bodyHtml += `
+                    <td class="border border-slate-300 p-0">
+                        <input type="text" value="${escapeHtml(st.name)}" 
+                            onchange="updateStudentName(${idx}, this.value)" 
+                            placeholder="O'quvchi F.I.Sh..." 
+                            class="cell-input name-input text-slate-800">
+                    </td>
+                `;
+
+                cfg.tasks.forEach((t, tIdx) => {
+                    const val = scores[tIdx] !== undefined ? scores[tIdx] : '';
+                    bodyHtml += `
+                        <td class="border border-slate-300 p-0">
+                            <input type="number" step="0.1" min="0" max="${t.max}" value="${val}" 
+                                oninput="updateScore(${idx}, ${tIdx}, this.value, ${t.max})" 
+                                class="cell-input text-slate-800">
+                        </td>
+                    `;
+                });
+
+                bodyHtml += `
+                    <td id="total-${idx}" class="border border-slate-300 px-2 py-1 text-center font-bold bg-blue-50/40 text-slate-900">
+                        ${stats.hasAny ? stats.totalDisplay : ''}
+                    </td>
+                    <td id="percent-${idx}" class="border border-slate-300 px-2 py-1 text-center font-medium text-slate-700">
+                        ${stats.hasAny ? stats.percentDisplay + '%' : ''}
+                    </td>
+                    <td id="grade-${idx}" class="border border-slate-300 px-2 py-1 text-center font-bold ${stats.gradeClass}">
+                        ${stats.hasAny ? stats.grade : ''}
+                    </td>
+                    <td class="border border-slate-300 px-1 py-1 text-center no-print">
+                        <button onclick="removeStudentRow(${idx})" class="text-slate-400 hover:text-rose-600 p-1 rounded transition" title="Qatorni o'chirish">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </td>
+                </tr>`;
+            });
+            tbody.innerHTML = bodyHtml;
+
+            // 3. Jadval osti (O'rtacha ko'rsatkichlar)
+            updateFooterAndStats();
+        }
+
+        // ==========================================
+        // 3. HISOBLASH VA STATISTIKA LOGIKASI
+        // ==========================================
+        function calculateRowStats(scores, maxTotal) {
+            let sum = 0;
+            let hasAny = false;
+            scores.forEach(v => {
+                if (v !== '' && v !== null && !isNaN(parseFloat(v))) {
+                    sum += parseFloat(v);
+                    hasAny = true;
+                }
+            });
+
+            // Suzuvchi nuqta xatoligini tuzatish (masalan: 2.8 * 3 = 8.3999999 -> 8.4)
+            sum = Math.round(sum * 10) / 10;
+            const totalDisplay = Number.isInteger(sum) ? sum.toString() : sum.toFixed(1);
+            
+            const percent = maxTotal > 0 ? (sum / maxTotal) * 100 : 0;
+            const percentRounded = Math.round(percent * 10) / 10;
+            const percentDisplay = Number.isInteger(percentRounded) ? percentRounded.toString() : percentRounded.toFixed(1);
+
+            let grade = 2;
+            let gradeClass = 'text-rose-600';
+            if (percent >= 86) {
+                grade = 5;
+                gradeClass = 'text-emerald-600';
+            } else if (percent >= 71) {
+                grade = 4;
+                gradeClass = 'text-blue-600';
+            } else if (percent >= 56) {
+                grade = 3;
+                gradeClass = 'text-amber-600';
+            }
+
+            return { hasAny, sum, totalDisplay, percent: percentRounded, percentDisplay, grade, gradeClass };
+        }
+
+        function updateStudentName(idx, val) {
+            students[idx].name = val;
+            updateFooterAndStats();
+        }
+
+        function updateScore(rowIdx, taskIdx, val, maxAllowed) {
+            const arr = currentMode === 'BSB' ? students[rowIdx].bsb : students[rowIdx].chsb;
+            if (val === '') {
+                arr[taskIdx] = '';
+            } else {
+                let num = parseFloat(val);
+                if (num < 0) num = 0;
+                if (num > maxAllowed) {
+                    num = maxAllowed;
+                    // Input qiymatini ham cheklab qo'yamiz
+                    const rowEl = document.getElementById(`row-${rowIdx}`);
+                    if (rowEl) {
+                        const inputs = rowEl.querySelectorAll('input[type="number"]');
+                        if (inputs[taskIdx]) inputs[taskIdx].value = maxAllowed;
+                    }
+                    showToast(`Maksimal ball ${maxAllowed} dan oshmasligi kerak!`, 'warning');
+                }
+                arr[taskIdx] = num;
+            }
+
+            // Faqat shu qatorning Jami, Foiz va Baho kataklarini yangilaymiz (fokus yo'qolmasligi uchun)
+            const stats = calculateRowStats(arr, CONFIG[currentMode].maxTotal);
+            document.getElementById(`total-${rowIdx}`).textContent = stats.hasAny ? stats.totalDisplay : '';
+            document.getElementById(`percent-${rowIdx}`).textContent = stats.hasAny ? stats.percentDisplay + '%' : '';
+            const gradeEl = document.getElementById(`grade-${rowIdx}`);
+            gradeEl.textContent = stats.hasAny ? stats.grade : '';
+            gradeEl.className = `border border-slate-300 px-2 py-1 text-center font-bold ${stats.gradeClass}`;
+
+            updateFooterAndStats();
+        }
+
+        function updateFooterAndStats() {
+            const cfg = CONFIG[currentMode];
+            const tfoot = document.getElementById('table-foot');
+
+            let activeStudents = 0;
+            let gradedStudents = 0;
+            let totalScoreSum = 0;
+            let totalPercentSum = 0;
+            let grades = { 5: 0, 4: 0, 3: 0, 2: 0 };
+            let taskSums = Array(cfg.tasks.length).fill(0);
+            let taskCounts = Array(cfg.tasks.length).fill(0);
+
+            students.forEach(st => {
+                const scores = currentMode === 'BSB' ? st.bsb : st.chsb;
+                const stats = calculateRowStats(scores, cfg.maxTotal);
+                if (st.name.trim() !== '' || stats.hasAny) {
+                    activeStudents++;
+                }
+                if (stats.hasAny) {
+                    gradedStudents++;
+                    totalScoreSum += stats.sum;
+                    totalPercentSum += stats.percent;
+                    grades[stats.grade]++;
+
+                    scores.forEach((v, i) => {
+                        if (v !== '' && !isNaN(parseFloat(v))) {
+                            taskSums[i] += parseFloat(v);
+                            taskCounts[i]++;
+                        }
+                    });
+                }
+            });
+
+            // Jadval ostidagi o'rtacha qator
+            let footHtml = `<tr>
+                <td colspan="2" class="border border-slate-300 px-3 py-2 text-right">O'rtacha ko'rsatkich:</td>`;
+            cfg.tasks.forEach((_, i) => {
+                const avgT = taskCounts[i] > 0 ? (Math.round((taskSums[i] / taskCounts[i]) * 10) / 10) : '';
+                footHtml += `<td class="border border-slate-300 px-1 py-2 text-center text-xs text-slate-600">${avgT}</td>`;
+            });
+            const avgTotal = gradedStudents > 0 ? (Math.round((totalScoreSum / gradedStudents) * 10) / 10) : '';
+            const avgPercent = gradedStudents > 0 ? (Math.round((totalPercentSum / gradedStudents) * 10) / 10) + '%' : '';
+
+            footHtml += `
+                <td class="border border-slate-300 px-2 py-2 text-center bg-blue-50 text-blue-900">${avgTotal}</td>
+                <td class="border border-slate-300 px-2 py-2 text-center">${avgPercent}</td>
+                <td class="border border-slate-300 px-2 py-2 text-center"></td>
+                <td class="border border-slate-300 no-print"></td>
+            </tr>`;
+            tfoot.innerHTML = footHtml;
+
+            // Yuqori statistika kartochkalari
+            document.getElementById('stat-count').textContent = activeStudents;
+            document.getElementById('stat-avg').textContent = gradedStudents > 0 ? `${avgTotal} (${avgPercent})` : '0 (0%)';
+            
+            const qualityCount = grades[5] + grades[4];
+            const passCount = grades[5] + grades[4] + grades[3];
+            const qualityPct = gradedStudents > 0 ? Math.round((qualityCount / gradedStudents) * 100) : 0;
+            const passPct = gradedStudents > 0 ? Math.round((passCount / gradedStudents) * 100) : 0;
+
+            document.getElementById('stat-quality').textContent = `${qualityPct}%`;
+            document.getElementById('stat-pass').textContent = `${passPct}%`;
+            document.getElementById('stat-grades').innerHTML = `
+                <span class="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">5: ${grades[5]}</span>
+                <span class="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">4: ${grades[4]}</span>
+                <span class="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">3: ${grades[3]}</span>
+                <span class="bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded">2: ${grades[2]}</span>
+            `;
+        }
+
+        // ==========================================
+        // 4. QATORLAR VA MODALLAR BOSHQARUVI
+        // ==========================================
+        function addStudentRow() {
+            students.push({
+                id: Date.now() + Math.random(),
+                name: '',
+                bsb: Array(5).fill(''),
+                chsb: Array(15).fill('')
+            });
+            renderTable();
+        }
+
+        function removeStudentRow(idx) {
+            if (students.length <= 1) {
+                showToast("Kamida 1 ta qator qolishi kerak!", "warning");
+                return;
+            }
+            students.splice(idx, 1);
+            renderTable();
+        }
+
+        function clearScores() {
+            students.forEach(st => {
+                if (currentMode === 'BSB') st.bsb = Array(5).fill('');
+                else st.chsb = Array(15).fill('');
+            });
+            renderTable();
+            showToast(`${currentMode} ballari tozalandi.`);
+        }
+
+        function clearMetadata() {
+            document.getElementById('meta-school').value = '';
+            document.getElementById('meta-subject').value = '';
+            document.getElementById('meta-class').value = '';
+            document.getElementById('meta-date').value = '';
+            document.getElementById('meta-teacher').value = '';
+            document.getElementById('meta-head').value = '';
+            updatePrintHeader();
+            showToast("Sarlavha ma'lumotlari bo'sh skelet holatiga keltirildi.");
+        }
+
+        function openPasteModal() {
+            document.getElementById('paste-textarea').value = '';
+            document.getElementById('paste-modal').classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function processPastedNames() {
+            const raw = document.getElementById('paste-textarea').value;
+            const lines = raw.split('\n').map(l => l.trim()).filter(l => l !== '');
+            if (lines.length === 0) {
+                showToast("Hech qanday ism kiritilmadi!", "warning");
+                return;
+            }
+
+            // Agar hozirgi jadval bo'sh bo'lsa, yangidan to'ldiramiz
+            const hasExistingNames = students.some(s => s.name.trim() !== '');
+            if (!hasExistingNames) {
+                students = lines.map((name, i) => ({
+                    id: Date.now() + i,
+                    name: name.replace(/^\d+[\.\)\s]+/, ''), // Oldidagi raqamlarni tozalash (1. Ali -> Ali)
+                    bsb: Array(5).fill(''),
+                    chsb: Array(15).fill('')
+                }));
+            } else {
+                lines.forEach((name, i) => {
+                    const cleanName = name.replace(/^\d+[\.\)\s]+/, '');
+                    if (i < students.length && students[i].name.trim() === '') {
+                        students[i].name = cleanName;
+                    } else {
+                        students.push({
+                            id: Date.now() + i,
+                            name: cleanName,
+                            bsb: Array(5).fill(''),
+                            chsb: Array(15).fill('')
+                        });
+                    }
+                });
+            }
+
+            closeModal('paste-modal');
+            renderTable();
+            showToast(`${lines.length} nafar o'quvchi ro'yxatga joylandi!`);
+        }
+
+        // ==========================================
+        // 5. AVTO-TAQSIMOT (Jami ball -> Topshiriqlar)
+        // ==========================================
+        function openAutoFillModal() {
+            const listEl = document.getElementById('autofill-list');
+            const maxVal = CONFIG[currentMode].maxTotal;
+            let html = '';
+
+            students.forEach((st, idx) => {
+                const scores = currentMode === 'BSB' ? st.bsb : st.chsb;
+                const currentSum = calculateRowStats(scores, maxVal).sum || '';
+                const displayName = st.name.trim() || `${idx + 1}-o'quvchi`;
+
+                html += `
+                    <div class="flex items-center justify-between gap-3 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                        <span class="text-xs font-medium text-slate-700 truncate">${idx + 1}. ${escapeHtml(displayName)}</span>
+                        <div class="flex items-center gap-1.5">
+                            <input type="number" step="0.2" min="0" max="${maxVal}" id="auto-total-${idx}" value="${currentSum}" 
+                                placeholder="0-${maxVal}" 
+                                class="w-20 px-2 py-1 text-xs text-center font-semibold border border-slate-300 rounded bg-white focus:border-blue-500 focus:outline-none">
+                            <span class="text-[11px] text-slate-400">/${maxVal}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            listEl.innerHTML = html;
+            document.getElementById('autofill-modal').classList.remove('hidden');
+        }
+
+        function fillRandomTotals() {
+            const maxVal = CONFIG[currentMode].maxTotal;
+            students.forEach((st, idx) => {
+                const inp = document.getElementById(`auto-total-${idx}`);
+                if (inp && (st.name.trim() !== '' || idx < 10)) {
+                    // Mantiqiy baho oralig'ida (60% dan 95% gacha)
+                    const minScore = Math.round(maxVal * 0.6);
+                    const randScore = Math.floor(Math.random() * (maxVal - minScore + 1)) + minScore;
+                    inp.value = randScore;
+                }
+            });
+        }
+
+        function applyAutoDistribution() {
+            const cfg = CONFIG[currentMode];
+            students.forEach((st, idx) => {
+                const inp = document.getElementById(`auto-total-${idx}`);
+                if (!inp || inp.value === '') return;
+
+                let target = parseFloat(inp.value);
+                if (isNaN(target)) return;
+                if (target > cfg.maxTotal) target = cfg.maxTotal;
+                if (target < 0) target = 0;
+
+                if (currentMode === 'BSB') {
+                    st.bsb = distributeBSB(target);
+                } else {
+                    st.chsb = distributeCHSB(target);
+                }
+            });
+
+            closeModal('autofill-modal');
+            renderTable();
+            showToast("Ballar topshiriqlar bo'yicha mantiqiy taqsimlandi!");
+        }
+
+        // BSB (5 ta topshiriq, har biri 5 ball) taqsimoti
+        function distributeBSB(target) {
+            let res = [0, 0, 0, 0, 0];
+            let rem = Math.round(target * 10) / 10;
+            // Oldin butun qismlarni teng taqsimlaymiz
+            let base = Math.floor(rem / 5);
+            for (let i = 0; i < 5; i++) {
+                res[i] = base;
+                rem = Math.round((rem - base) * 10) / 10;
+            }
+            // Qoldiqni birinchi topshiriqlarga qo'shamiz
+            for (let i = 0; i < 5 && rem > 0; i++) {
+                let add = Math.min(5 - res[i], rem);
+                res[i] = Math.round((res[i] + add) * 10) / 10;
+                rem = Math.round((rem - add) * 10) / 10;
+            }
+            return res.map(v => v === 0 ? '' : v);
+        }
+
+        // CHSB (1-4: 2b, 5-14: 2.8b, 15: 4b) mantiqiy taqsimoti
+        function distributeCHSB(target) {
+            let res = Array(15).fill(0);
+            let rem = Math.round(target * 10) / 10;
+
+            // Agar ball yuqori bo'lsa (>= 32), oxirgi 4 ballik topshiriqni ham beramiz
+            if (rem >= 32) {
+                res[14] = 4;
+                rem = Math.round((rem - 4) * 10) / 10;
+            }
+
+            // 5-14 topshiriqlarni (2.8 ballik) to'ldirishga harakat qilamiz
+            for (let i = 4; i <= 13; i++) {
+                if (rem >= 2.8) {
+                    res[i] = 2.8;
+                    rem = Math.round((rem - 2.8) * 10) / 10;
+                }
+            }
+
+            // 1-4 topshiriqlarni (2 ballik) to'ldiramiz
+            for (let i = 0; i <= 3; i++) {
+                if (rem >= 2) {
+                    res[i] = 2;
+                    rem = Math.round((rem - 2) * 10) / 10;
+                }
+            }
+
+            // Agar 15-topshiriq hali berilmagan bo'lsa va qoldiq >= 4 bo'lsa
+            if (res[14] === 0 && rem >= 4) {
+                res[14] = 4;
+                rem = Math.round((rem - 4) * 10) / 10;
+            }
+
+            // Agar juda kichik qoldiq (masalan 0.8, 1.2, 1.6, 2.0) qolgan bo'lsa, mos katakka joylaymiz
+            if (rem > 0) {
+                for (let i = 0; i < 15; i++) {
+                    const maxT = CONFIG.CHSB.tasks[i].max;
+                    if (res[i] + rem <= maxT) {
+                        res[i] = Math.round((res[i] + rem) * 10) / 10;
+                        rem = 0;
+                        break;
+                    }
+                }
+            }
+
+            return res.map(v => v === 0 ? '' : v);
+        }
+
+        // ==========================================
+        // 6. HAQIQIY EXCEL (.XLSX) EKSPORT (ExcelJS)
+        // ==========================================
+        async function exportCurrentExcel() {
+            const workbook = new ExcelJS.Workbook();
+            buildExcelWorksheet(workbook, currentMode);
+            const subj = document.getElementById('meta-subject').value.trim() || 'Fan';
+            const cls = document.getElementById('meta-class').value.trim().replace(/["\\/:*?<>|]/g, '') || 'Sinf';
+            const fileName = `${cls}_${subj}_${currentMode}_tahlil.xlsx`;
+            
+            const buffer = await workbook.xlsx.writeBuffer();
+            saveAs(new Blob([buffer]), fileName);
+            showToast(`"${fileName}" fayli yuklab olindi!`);
+        }
+
+        async function exportBothExcel() {
+            const workbook = new ExcelJS.Workbook();
+            buildExcelWorksheet(workbook, 'BSB');
+            buildExcelWorksheet(workbook, 'CHSB');
+            const subj = document.getElementById('meta-subject').value.trim() || 'Fan';
+            const cls = document.getElementById('meta-class').value.trim().replace(/["\\/:*?<>|]/g, '') || 'Sinf';
+            const fileName = `${cls}_${subj}_BSB_va_CHSB_tahlil.xlsx`;
+
+            const buffer = await workbook.xlsx.writeBuffer();
+            saveAs(new Blob([buffer]), fileName);
+            showToast(`"${fileName}" (2 varaqli) fayli yuklab olindi!`);
+        }
+
+        function buildExcelWorksheet(workbook, mode) {
+            const cfg = CONFIG[mode];
+            const sheetName = mode === 'BSB' ? 'BSB_jadvali' : 'CHSB_jadvali';
+            const ws = workbook.addWorksheet(sheetName, {
+                pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 1 }
+            });
+
+            const school = document.getElementById('meta-school').value.trim() || '________________________________________ maktab';
+            const subject = document.getElementById('meta-subject').value.trim() || '________________';
+            const cls = document.getElementById('meta-class').value.trim() || '______ sinf';
+            const quarter = document.getElementById('meta-quarter').value.trim() || "2025/2026 o'quv yili, IV-chorak";
+            const date = document.getElementById('meta-date').value.trim() || '____________';
+            const teacher = document.getElementById('meta-teacher').value.trim() || '_______________________';
+            const head = document.getElementById('meta-head').value.trim() || '_______________________';
+
+            // Ustunlar soni: № (1) + Ism (1) + Topshiriqlar (5 yoki 15) + Jami (1) + Foiz (1) + Baho (1)
+            const totalCols = 2 + cfg.tasks.length + 3;
+            const lastColLetter = ws.getColumn(totalCols).letter;
+
+            // 1. Sarlavha qatorlari
+            ws.mergeCells(`A1:${lastColLetter}1`);
+            const titleCell1 = ws.getCell('A1');
+            titleCell1.value = `${school}ning ${subject} fanidan`;
+            titleCell1.font = { name: 'Times New Roman', size: 12, bold: true };
+            titleCell1.alignment = { horizontal: 'center', vertical: 'middle' };
+            ws.getRow(1).height = 22;
+
+            ws.mergeCells(`A2:${lastColLetter}2`);
+            const titleCell2 = ws.getCell('A2');
+            titleCell2.value = `${cls}, ${quarter} ${cfg.title} natijalari tahlili.      Sana: ${date}`;
+            titleCell2.font = { name: 'Times New Roman', size: 11, bold: true };
+            titleCell2.alignment = { horizontal: 'center', vertical: 'middle' };
+            ws.getRow(2).height = 20;
+
+            // 2. Jadval Sarlavhasi (4 va 5-qatorlar)
+            const headerRowIdx = 4;
+            const subHeaderRowIdx = 5;
+
+            ws.mergeCells(`A${headerRowIdx}:A${subHeaderRowIdx}`);
+            ws.getCell(`A${headerRowIdx}`).value = '№';
+
+            ws.mergeCells(`B${headerRowIdx}:B${subHeaderRowIdx}`);
+            ws.getCell(`B${headerRowIdx}`).value = "O'quvchining ismi va familiyasi";
+
+            cfg.tasks.forEach((t, i) => {
+                const colIdx = 3 + i;
+                const colLetter = ws.getColumn(colIdx).letter;
+                ws.getCell(`${colLetter}${headerRowIdx}`).value = Number(t.label);
+                const maxCell = ws.getCell(`${colLetter}${subHeaderRowIdx}`);
+                maxCell.value = t.max;
+                // MUHIM: 2.8 soni sanaga aylanib ketmasligi uchun aniq raqam formati
+                maxCell.numFmt = t.isDecimal ? '0.0' : '0';
+            });
+
+            const jamiCol = ws.getColumn(3 + cfg.tasks.length).letter;
+            const foizCol = ws.getColumn(4 + cfg.tasks.length).letter;
+            const bahoCol = ws.getColumn(5 + cfg.tasks.length).letter;
+
+            ws.mergeCells(`${jamiCol}${headerRowIdx}:${jamiCol}${subHeaderRowIdx}`);
+            ws.getCell(`${jamiCol}${headerRowIdx}`).value = `Jami (${cfg.maxTotal})`;
+
+            ws.mergeCells(`${foizCol}${headerRowIdx}:${foizCol}${subHeaderRowIdx}`);
+            ws.getCell(`${foizCol}${headerRowIdx}`).value = 'Foizi (%)';
+
+            ws.mergeCells(`${bahoCol}${headerRowIdx}:${bahoCol}${subHeaderRowIdx}`);
+            ws.getCell(`${bahoCol}${headerRowIdx}`).value = 'Baho';
+
+            // Sarlavha kataklarini stillash
+            [headerRowIdx, subHeaderRowIdx].forEach(r => {
+                const row = ws.getRow(r);
+                row.height = 20;
+                for (let c = 1; c <= totalCols; c++) {
+                    const cell = row.getCell(c);
+                    cell.font = { name: 'Times New Roman', size: 10, bold: true };
+                    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+                    cell.border = thinBorder();
+                }
+            });
+
+            // 3. O'quvchilar ma'lumotlari
+            const firstTaskLetter = ws.getColumn(3).letter;
+            const lastTaskLetter = ws.getColumn(2 + cfg.tasks.length).letter;
+            const startDataRow = 6;
+
+            students.forEach((st, idx) => {
+                const r = startDataRow + idx;
+                const row = ws.getRow(r);
+                row.height = 19;
+
+                const scores = mode === 'BSB' ? st.bsb : st.chsb;
+
+                // №
+                const cNum = row.getCell(1);
+                cNum.value = idx + 1;
+                cNum.alignment = { horizontal: 'center', vertical: 'middle' };
+
+                // Ism
+                const cName = row.getCell(2);
+                cName.value = st.name;
+                cName.alignment = { horizontal: 'left', vertical: 'middle' };
+
+                // Topshiriq ballari
+                cfg.tasks.forEach((t, tIdx) => {
+                    const cell = row.getCell(3 + tIdx);
+                    const val = scores[tIdx];
+                    if (val !== '' && val !== null && !isNaN(parseFloat(val))) {
+                        cell.value = parseFloat(val);
+                    }
+                    // 2.8 sanaga aylanmasligi uchun qat'iy raqam formati!
+                    cell.numFmt = t.isDecimal ? '0.0' : '0';
+                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                });
+
+                // Jami ball (Haqiqiy Excel formulasi)
+                const cJami = row.getCell(3 + cfg.tasks.length);
+                cJami.value = { formula: `IF(COUNT(${firstTaskLetter}${r}:${lastTaskLetter}${r})=0,"",SUM(${firstTaskLetter}${r}:${lastTaskLetter}${r}))` };
+                cJami.numFmt = '0.0';
+                cJami.font = { name: 'Times New Roman', size: 10, bold: true };
+                cJami.alignment = { horizontal: 'center', vertical: 'middle' };
+
+                // Foizi (%)
+                const cFoiz = row.getCell(4 + cfg.tasks.length);
+                cFoiz.value = { formula: `IF(${jamiCol}${r}="","",ROUND((${jamiCol}${r}/${cfg.maxTotal})*100,1))` };
+                cFoiz.numFmt = '0.0"%"';
+                cFoiz.alignment = { horizontal: 'center', vertical: 'middle' };
+
+                // Baho (5, 4, 3, 2)
+                const cBaho = row.getCell(5 + cfg.tasks.length);
+                cBaho.value = { formula: `IF(${foizCol}${r}="","",IF(${foizCol}${r}>=86,5,IF(${foizCol}${r}>=71,4,IF(${foizCol}${r}>=56,3,2))))` };
+                cBaho.numFmt = '0';
+                cBaho.font = { name: 'Times New Roman', size: 10, bold: true };
+                cBaho.alignment = { horizontal: 'center', vertical: 'middle' };
+
+                // Barcha kataklarga shrift va ramka berish
+                for (let c = 1; c <= totalCols; c++) {
+                    const cell = row.getCell(c);
+                    if (!cell.font) cell.font = { name: 'Times New Roman', size: 10 };
+                    cell.border = thinBorder();
+                }
+            });
+
+            // 4. O'rtacha ko'rsatkich qatori
+            const endDataRow = startDataRow + students.length - 1;
+            const avgRowIdx = endDataRow + 1;
+            const avgRow = ws.getRow(avgRowIdx);
+            avgRow.height = 20;
+
+            ws.mergeCells(`A${avgRowIdx}:B${avgRowIdx}`);
+            ws.getCell(`A${avgRowIdx}`).value = "O'rtacha ball:";
+            ws.getCell(`A${avgRowIdx}`).alignment = { horizontal: 'right', vertical: 'middle' };
+
+            cfg.tasks.forEach((t, tIdx) => {
+                const colLetter = ws.getColumn(3 + tIdx).letter;
+                const cell = avgRow.getCell(3 + tIdx);
+                cell.value = { formula: `IFERROR(AVERAGE(${colLetter}${startDataRow}:${colLetter}${endDataRow}),"")` };
+                cell.numFmt = '0.0';
+                cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            });
+
+            const avgJamiCell = avgRow.getCell(3 + cfg.tasks.length);
+            avgJamiCell.value = { formula: `IFERROR(AVERAGE(${jamiCol}${startDataRow}:${jamiCol}${endDataRow}),"")` };
+            avgJamiCell.numFmt = '0.0';
+            avgJamiCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+            const avgFoizCell = avgRow.getCell(4 + cfg.tasks.length);
+            avgFoizCell.value = { formula: `IFERROR(AVERAGE(${foizCol}${startDataRow}:${foizCol}${endDataRow}),"")` };
+            avgFoizCell.numFmt = '0.0"%"';
+            avgFoizCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+            for (let c = 1; c <= totalCols; c++) {
+                const cell = avgRow.getCell(c);
+                cell.font = { name: 'Times New Roman', size: 10, bold: true };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+                cell.border = thinBorder();
+            }
+
+            // 5. Imzo qatorlari
+            const signRow1 = avgRowIdx + 2;
+            ws.getCell(`B${signRow1}`).value = `Fan o'qituvchisi: ${teacher}`;
+            ws.getCell(`B${signRow1}`).font = { name: 'Times New Roman', size: 11, bold: true };
+
+            const signRow2 = avgRowIdx + 4;
+            ws.getCell(`B${signRow2}`).value = `Fan metodbirlashma rahbari: ${head}`;
+            ws.getCell(`B${signRow2}`).font = { name: 'Times New Roman', size: 11, bold: true };
+
+            // 6. Ustun kengliklarini moslash
+            ws.getColumn(1).width = 5;
+            ws.getColumn(2).width = 30;
+            for (let i = 0; i < cfg.tasks.length; i++) {
+                ws.getColumn(3 + i).width = 5.5;
+            }
+            ws.getColumn(3 + cfg.tasks.length).width = 10;
+            ws.getColumn(4 + cfg.tasks.length).width = 10;
+            ws.getColumn(5 + cfg.tasks.length).width = 8;
+        }
+
+        function thinBorder() {
+            return {
+                top: { style: 'thin', color: { argb: 'FF000000' } },
+                left: { style: 'thin', color: { argb: 'FF000000' } },
+                bottom: { style: 'thin', color: { argb: 'FF000000' } },
+                right: { style: 'thin', color: { argb: 'FF000000' } }
+            };
+        }
+
+        // ==========================================
+        // 7. YORDAMCHI FUNKSIYALAR
+        // ==========================================
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const msgEl = document.getElementById('toast-msg');
+
+            msgEl.textContent = msg;
+            if (type === 'warning') {
+                icon.className = 'fa-solid fa-triangle-exclamation text-amber-400';
+            } else {
+                icon.className = 'fa-solid fa-circle-check text-emerald-400';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // Ilovani ishga tushirish
+        window.onload = function() {
+            initStudents(15);
+            updatePrintHeader();
+            renderTable();
+        };
+    </script>
+</body>
+</html>
